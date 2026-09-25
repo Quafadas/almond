@@ -65,6 +65,11 @@ final case class Options(
     quiet: Boolean = true,
   @HelpMessage("Disable ammonite compilation cache")
     disableCache: Boolean = false,
+  @HelpMessage("Remember dependency resolution results on disk, and reuse them in later sessions when the dependencies, the repositories, and the dependency-related options are the same (ignored if --disable-cache is passed)")
+    resolutionCache: Boolean = false,
+  @HelpMessage("Directory where resolution cache entries are written (defaults to a 'resolution-cache' directory under Almond's cache directory)")
+  @ValueDescription("/path/to/dir")
+    resolutionCacheDir: Option[String] = None,
   @HelpMessage("Whether to automatically update lazy val-s upon computation")
     autoUpdateLazyVals: Boolean = true,
   @HelpMessage("Whether to automatically update var-s upon change")

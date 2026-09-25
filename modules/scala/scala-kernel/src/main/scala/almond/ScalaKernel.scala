@@ -171,6 +171,11 @@ object ScalaKernel extends CaseApp[Options] {
         trapOutput = options.trapOutput,
         quiet = options.quiet,
         disableCache = options.disableCache,
+        resolutionCache = options.resolutionCache,
+        resolutionCacheDir = options.resolutionCacheDir
+          .map(_.trim)
+          .filter(_.nonEmpty)
+          .map(os.Path(_, os.pwd)),
         autoUpdateLazyVals = options.autoUpdateLazyVals,
         autoUpdateVars = options.autoUpdateVars,
         useNotebookCoursierLogger = options.useNotebookCoursierLogger,

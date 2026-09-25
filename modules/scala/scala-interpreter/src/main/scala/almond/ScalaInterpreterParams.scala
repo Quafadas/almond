@@ -60,7 +60,17 @@ final case class ScalaInterpreterParams(
   wrapperNamePrefix: String = ScalaInterpreterParams.defaultWrapperNamePrefix,
   pkgName: Seq[String] = AmmInterpreter.defaultPkgName,
   evaluatorHookOpt: Option[HookEvaluator.Hook] = None,
-  logCode: Boolean = false
+  logCode: Boolean = false,
+
+  /** Whether to remember dependency resolution results on disk, and reuse them in later sessions
+    * when the inputs are the same.
+    */
+  resolutionCache: Boolean = false,
+
+  /** Where to keep the resolution cache - defaults to a `resolution-cache` directory under Almond's
+    * cache directory.
+    */
+  resolutionCacheDir: Option[os.Path] = None
 )
 
 object ScalaInterpreterParams {

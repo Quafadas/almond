@@ -59,20 +59,33 @@ final class ScalaInterpreter(
 
   private var commHandlerOpt = Option.empty[CommHandler]
 
+  private lazy val almondCacheDir: os.Path = {
+    val windows =
+      if (coursier.paths.Util.useJni())
+        WindowsJni.getJdkAwareSupplier()
+      else
+        Windows.getDefaultSupplier()
+    val projDirs = ProjectDirectories.from(null, null, "Almond", windows)
+    os.Path(projDirs.cacheDir)
+  }
+
   private val storage =
     if (params.disableCache)
       Storage.InMemory()
-    else {
-      val windows =
-        if (coursier.paths.Util.useJni())
-          WindowsJni.getJdkAwareSupplier()
-        else
-          Windows.getDefaultSupplier()
-      val projDirs = ProjectDirectories.from(null, null, "Almond", windows)
+    else
       new Storage.Folder(
-        os.Path(projDirs.cacheDir) / "ammonite"
+        almondCacheDir / "ammonite"
       )
+
+  private val resolutionCacheDirOpt: Option[os.Path] =
+    if (!params.resolutionCache)
+      None
+    else if (params.disableCache) {
+      log.debug("Not using the resolution cache, as the Ammonite cache is disabled")
+      None
     }
+    else
+      Some(params.resolutionCacheDir.getOrElse(almondCacheDir / "resolution-cache"))
 
   private val execute0 = new Execute(
     params.trapOutput,
@@ -153,7 +166,8 @@ final class ScalaInterpreter(
       wrapperNamePrefix = params.wrapperNamePrefix,
       pkgName = params.pkgName,
       evaluatorHookOpt = params.evaluatorHookOpt,
-      logCode = params.logCode
+      logCode = params.logCode,
+      resolutionCacheDirOpt = resolutionCacheDirOpt
     )
 
     execute0.loadOptions(interp, params.upfrontKernelOptions)

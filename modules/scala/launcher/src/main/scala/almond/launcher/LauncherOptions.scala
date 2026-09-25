@@ -55,7 +55,12 @@ final case class LauncherOptions(
   @ExtraName("tmpOutputDir")
     tmpOutputDirectory: Option[Boolean] = None,
   @Hidden
-    logCode: Option[Boolean] = None
+    logCode: Option[Boolean] = None,
+  @HelpMessage("Remember dependency resolution results on disk, and reuse them in later sessions when the dependencies, the repositories, and the dependency-related options are the same")
+    resolutionCache: Option[Boolean] = None,
+  @HelpMessage("Directory where resolution cache entries are written (defaults to a 'resolution-cache' directory under Almond's cache directory)")
+  @ValueDescription("/path/to/dir")
+    resolutionCacheDir: Option[String] = None
 ) {
   // format: on
 
@@ -97,6 +102,10 @@ final case class LauncherOptions(
       b += s"--tmp-output-directory=$tmpOutputDir"
     for (logCode0 <- logCode)
       b += s"--log-code=$logCode0"
+    for (value <- resolutionCache)
+      b += s"--resolution-cache=$value"
+    for (value <- resolutionCacheDir)
+      b += s"--resolution-cache-dir=$value"
     b.result()
   }
 

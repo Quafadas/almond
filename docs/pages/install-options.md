@@ -111,6 +111,20 @@ added by default.) Use like
 
 #### `--profile`
 
+#### `--resolution-cache`
+
+Remember the outcome of cell dependency resolution on disk, avoiding re-reading and re-parsing POM files. Survives kernel restarts. Useful when the dependancy inputs are the same. Off by default.
+
+Pass `--log info` to see what the cache does - it logs one line per resolution, saying `hit`,
+`miss`, `stale` or `not-cacheable`.
+
+Ignored when `--disable-cache` is passed.
+
+#### `--resolution-cache-dir`
+
+Where `--resolution-cache` writes its entries. Defaults to a `resolution-cache` directory next to
+the other Almond caches (`~/.cache/Almond/resolution-cache` on Linux). Entries are small JSON files, one per resolution, and are never removed - delete the directory to clear them.
+
 
 ## Internals
 

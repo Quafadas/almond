@@ -4,6 +4,7 @@ import java.nio.file.{Files, Path}
 
 import almond.{Execute, JupyterApiImpl, ReplApiImpl, ScalaInterpreter}
 import almond.cslogger.NotebookCacheLogger
+import almond.internals.ResolutionCache
 import almond.logger.LoggerContext
 import ammonite.compiler.iface.CodeWrapper
 import ammonite.runtime.{Evaluator, Frame, Storage}
@@ -86,7 +87,8 @@ object AmmInterpreter {
     wrapperNamePrefix: String,
     pkgName: Seq[String],
     evaluatorHookOpt: Option[HookEvaluator.Hook],
-    logCode: Boolean
+    logCode: Boolean,
+    resolutionCacheDirOpt: Option[os.Path]
   ): ammonite.interp.Interpreter = {
 
     val automaticDependenciesMatchers = automaticDependencies
@@ -96,6 +98,26 @@ object AmmInterpreter {
           ModuleMatcher(m.getOrganization, m.getName) -> l
       }
       .toVector
+
+    /** The automatic dependencies a dependency pulls in - used both by the resolution hook that
+      * adds them, and by the resolution cache, that needs to know about them to key on them.
+      */
+    val extraDependenciesFor: Dependency => Seq[Dependency] = { dep =>
+      val mod = dependency.Module(
+        dep.getModule.getOrganization,
+        dep.getModule.getName
+      )
+      automaticDependencies.getOrElse(
+        dep.getModule,
+        automaticDependenciesMatchers
+          .find(_._1.matches(mod))
+          .map(_._2)
+          .getOrElse(Nil)
+      )
+    }
+
+    val alreadyLoadedDependencies0 =
+      ammonite.main.Defaults.alreadyLoadedDependencies("almond/almond-user-dependencies.txt")
 
     val predefFileInfos =
       predefFiles.zipWithIndex.map {
@@ -138,8 +160,7 @@ object AmmInterpreter {
         wd = os.pwd,
         colors = replApi.colors,
         verboseOutput = true, // ???
-        alreadyLoadedDependencies =
-          ammonite.main.Defaults.alreadyLoadedDependencies("almond/almond-user-dependencies.txt"),
+        alreadyLoadedDependencies = alreadyLoadedDependencies0,
         wrapperNamePrefix = wrapperNamePrefix,
         pkgName = pkgName.map(Name(_))
       )
@@ -148,6 +169,21 @@ object AmmInterpreter {
         case Right(true)  => Some(os.temp.dir(prefix = "almond-output").toNIO)
         case Right(false) => None
       }
+      val resolutionCacheOpt = resolutionCacheDirOpt.map { dir =>
+        new ResolutionCache(
+          dir,
+          ResolutionCache.Params(
+            extraDependencies = extraDependenciesFor,
+            automaticVersions = automaticVersions,
+            forceMavenProperties = forceMavenProperties,
+            mavenProfiles = mavenProfiles,
+            alreadyLoadedDependencies = alreadyLoadedDependencies0,
+            scalaVersion = ammonite.compiler.CompilerBuilder.scalaVersion
+          ),
+          logCtx
+        )
+      }
+
       val ammInterp0: ammonite.interp.Interpreter =
         new ammonite.interp.Interpreter(
           ammonite.compiler.CompilerBuilder(
@@ -190,6 +226,17 @@ object AmmInterpreter {
                   baseEval
               }
           }
+
+          /** Both `//> using dep` (via [[almond.Execute]]) and `import $ivy` end up here, so this
+            * is where the resolution cache goes.
+            */
+          override def loadIvy(coordinates: Dependency*): Either[String, Seq[java.io.File]] = {
+            def resolve() = super.loadIvy(coordinates: _*)
+            resolutionCacheOpt match {
+              case None        => resolve()
+              case Some(cache) => cache(coordinates, repositories())(() => resolve())
+            }
+          }
         }
 
       if (useNotebookCoursierLogger)
@@ -213,19 +260,7 @@ object AmmInterpreter {
         val extraDependencies = f.getDependencies
           .asScala
           .toVector
-          .flatMap { dep =>
-            val mod = dependency.Module(
-              dep.getModule.getOrganization,
-              dep.getModule.getName
-            )
-            automaticDependencies.getOrElse(
-              dep.getModule,
-              automaticDependenciesMatchers
-                .find(_._1.matches(mod))
-                .map(_._2)
-                .getOrElse(Nil)
-            )
-          }
+          .flatMap(extraDependenciesFor)
         val f0 = f.addDependencies(extraDependencies: _*)
 
         val deps = f0.getDependencies.asScala.toVector
